@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giáo Trình Tương Tác 3D: Hệ Hô Hấp & Trao Đổi Khí</title>
+    <style>
+        :root {
+            --bg-glow: #020813;
+            --panel-bg: rgba(6, 18, 38, 0.85);
+            --neon-blue: #00f2fe;
+            --neon-red: #ff416c;
+            --text-light: #f7fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-glow);
+            color: var(--text-light);
+        }
+
+        #webgl-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* --- THANH ĐIỀU KHIỂN CHÍNH PHÍA DƯỚI (MENU) --- */
+        .bottom-nav {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 20px;
+            background: var(--panel-bg);
+            padding: 12px 30px;
+            border-radius: 40px;
+            border: 1px solid rgba(0, 242, 254, 0.3);
+            box-shadow: 0 0 25px rgba(0, 242, 254, 0.15);
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: #718096;
+            padding: 10px 24px;
+            font-size: 15px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 30px;
+        }
+
+        .nav-btn.active, .nav-btn:hover {
+            color: var(--text-light);
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+        }
+
+        /* --- BẢNG ĐIỀU KHIỂN & CHÚ THÍCH BÊN PHẢI --- */
+        .side-panel {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            width: 350px;
+            background: var(--panel-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 25px;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        h2 {
+            font-size: 22px;
+            color: var(--neon-blue);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(0, 242, 254, 0.2);
+            padding-bottom: 10px;
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #cbd5e0;
+            border-left: 3px solid var(--neon-blue);
+        }
+
+        .sub-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .action-btn {
+            background: rgba(0, 242, 254, 0.05);
+            border: 1px solid var(--neon-blue);
+            color: var(--text-light);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(0, 242, 254, 0.2);
+            box-shadow: 0 0 12px rgba(0, 242, 254, 0.3);
+        }
+
+        .action-btn.active {
+            background: var(--neon-blue);
+            color: #020813;
+        }
+
+        /* --- CÁC NHÃN HOTSPOT TRÊN MÀN HÌNH 3D --- */
+        .hotspot-label {
+            position: absolute;
+            z-index: 5;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            background: rgba(2, 8, 19, 0.85);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--neon-blue);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            pointer-events: auto;
+            white-space: nowrap;
+            box-shadow: 0 0 10px rgba(0,242,254,0.2);
+        }
+
+        .hotspot-label::before {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 6px 6px 0;
+            border-style: solid;
+            border-color: var(--neon-blue) transparent;
+            display: block;
+            width: 0;
+        }
+
+        .hotspot-label:hover {
+            background: var(--neon-blue);
+            color: #000;
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        /* --- TIỆN ÍCH HƯỚNG DẪN THAO TÁC --- */
+        .help-tip {
+            position: absolute;
+            bottom: 35px;
+            left: 35px;
+            font-size: 12px;
+            color: #a0aec0;
+            background: rgba(0,0,0,0.4);
+            padding: 8px 12px;
+            border-radius: 6px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Ẩn/Hiện tương tác lớp */
+        .hidden { display: none !important; }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+    <div id="webgl-container"></div>
+
+    <div class="help-tip"> Chuột trái: Xoay | Cuộn chuột: Thu phóng | Chuột phải: Di chuyển</div>
+
+    <nav class="bottom-nav">
+        <button class="nav-btn active" onclick="switchModule('A')">Hệ Hô Hấp Tổng Thể</button>
+        <button class="nav-btn" onclick="switchModule('B')">Cơ Chế Hít Thở</button>
+        <button class="nav-btn" onclick="switchModule('C')">Trao Đổi Khí (Phế Nang)</button>
+    </nav>
+
+    <div id="panel-A" class="side-panel">
+        <h2>Cấu Trúc Hệ Hô Hấp</h2>
+        <div class="info-card" id="info-text-A">
+            Nhấp trực tiếp vào các nhãn dán (Hotspot) trên mô hình để khám phá chi tiết cấu tạo cơ thể học một cách trực quan.
+        </div>
+        <div class="sub-controls">
+            <button class="action-btn" id="btn-airflow" onclick="toggleAirflow()">Mô Phỏng Luồng Khí (Airflow)</button>
+        </div>
+    </div>
+
+    <div id="panel-B" class="side-panel hidden">
+        <h2>Cơ Chế Vận Động Phổi</h2>
+        <div class="info-card" id="info-text-B">
+            Hệ hô hấp hoạt động nhờ sự thay đổi thể tích khoang ngực dưới sự điều khiển của cơ hoành và cơ liên sườn.
+        </div>
+        <div class="sub-controls">
+            <button class="action-btn mode-b-btn" id="btn-inhale" onclick="setBreathing('inhale')">Hít Vào</button>
+            <button class="action-btn mode-b-btn" id="btn-exhale" onclick="setBreathing('exhale')">Thở Ra</button>
+            <button class="action-btn mode-b-btn active" id="btn-auto" onclick="setBreathing('auto')">Tự Động Tuần Hoàn</button>
+        </div>
+    </div>
+
+    <div id="panel-C" class="side-panel hidden">
+        <h2>Trao Đổi Khí Ở Phế Nang</h2>
+        <div class="info-card" id="info-text-C">
+            **Sự khuếch tán:** <br>
+            - **Oxy ($O_2$):** Từ phế nang khuếch tán vào mao mạch máu (Hạt Xanh Lam).<br>
+            - **Cacbonic ($CO_2$):** Từ máu khuếch tán ngược vào phế nang để thải ra ngoài (Hạt Đỏ).
+        </div>
+        <div class="sub-controls">
+            <div style="font-size: 12px; color: #a0aec0; border-top: 1px solid #2d3748; padding-top:10px;">
+                * Màu Xanh Lam: Khí Oxy ($O_2$)<br>
+                * Màu Đỏ: Khí Cacbonic ($CO_2$)
+            </div>
+        </div>
+    </div>
+
+    <div id="hotspot-container"></div>
+
+    <script>
+        /* ========================================================================
+           📌 KHU VỰC CẤU HÌNH ĐƯỜNG DẪN FILE 3D (.GLTF/.GLB) DÀNH CHO BẠN
+           ======================================================================== */
+        const CONFIG_3D_MODELS = {
+            useExternalFiles: false, // Đổi thành TRUE nếu bạn muốn nạp file 3D của riêng bạn từ thư mục local
+            
+            // Hãy copy file .gltf/.glb của bạn vào cùng thư mục với file HTML này và đổi tên tương ứng:
+            url_HeHoHapTongThe: 'he_ho_hap_tong_the.glb', 
+            url_CoCheHitTho:    'co_che_hit_tho.glb',
+            url_PheNangTraoDoiKi: 'phe_nang_trao_doi_khi.glb'
+        };
+
+
+        // --- Khởi tạo các biến môi trường lõi ---
+        let scene, camera, renderer, controls, clock;
+        let currentModule = 'A';
+
+        // Các nhóm quản lý vật thể riêng cho từng module cảnh nền
+        let groupA, groupB, groupC;
+
+        // Biến trạng thái chức năng Module A
+        let airflowActive = false;
+        let particleSystemA = null;
+        const hotspotsData = [
+            { name: "Khí Quản", pos: [0, 1.2, 0], desc: "Khí quản là một ống dẫn khí hình trụ, được giữ vững bằng các vòng sụn khuyết giúp đường thở luôn thông thoáng không bị xẹp." },
+            { name: "Phế Quản", pos: [0.25, 0.4, 0.1], desc: "Khí quản phân nhánh thành hai phế quản gốc trái và phải, dẫn không khí đi sâu vào từng lá phổi." },
+            { name: "Phổi Phải", pos: [0.6, -0.2, 0.2], desc: "Phổi phải lớn hơn phổi trái, gồm có 3 thùy. Đây là cơ quan chính diễn ra hoạt động trao đổi khí." },
+            { name: "Phổi Trái", pos: [-0.6, -0.2, 0.2], desc: "Phổi trái nhỏ hơn (chỉ có 2 thùy) do nhường không gian cho tim nằm hơi lệch sang bên trái." }
+        ];
+
+        // Biến trạng thái chức năng Module B
+        let breathingState = 'auto'; // inhale | exhale | auto
+        let breathingTimer = 0;
+        let lungMeshLeftB, lungMeshRightB;
+
+        // Biến trạng thái chức năng Module C
+        let gasParticles = [];
+
+        // --- BẮT ĐẦU CHẠY HỆ THỐNG ---
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('webgl-container');
+            clock = new THREE.Clock();
+
+            // 1. Khởi tạo Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020813);
+            scene.fog = new THREE.FogExp2(0x020813, 0.1);
+
+            // 2. Khởi tạo Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 0, 5);
+
+            // 3. Khởi tạo Renderer chuyên nghiệp hỗ trợ chiều sâu màu tốt hơn
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            container.appendChild(renderer.domElement);
+
+            // 4. Thiết lập OrbitControls điều khiển tương tác chuột và cảm ứng tay
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 15;
+            controls.minDistance = 1.5;
+
+            // 5. Cài đặt hệ thống chiếu sáng (Studio Lighting Setup)
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.DirectionalLight(0x00f2fe, 1.2);
+            keyLight.position.set(5, 5, 4);
+            scene.add(keyLight);
+
+            const fillLight = new THREE.DirectionalLight(0xff416c, 0.4);
+            fillLight.position.set(-5, -2, 2);
+            scene.add(fillLight);
+
+            // 6. Khởi tạo các Group đại diện cho từng phân đoạn bài học
+            groupA = new THREE.Group();
+            groupB = new THREE.Group();
+            groupC = new THREE.Group();
+            scene.add(groupA, groupB, groupC);
+
+            // Xây dựng cơ sở dữ liệu mô hình hình học thủ tục
+            buildProceduralSceneA();
+            buildProceduralSceneB();
+            buildProceduralSceneC();
+
+            // Nếu người dùng bật cấu hình nạp file thực tế, tiến hành nạp đè lên nhóm
+            if (CONFIG_3D_MODELS.useExternalFiles) {
+                loadExternalGLTFFiles();
+            }
+
+            // Thiết lập trạng thái giao diện buổi đầu
+            switchModule('A');
+
+            // Lắng nghe thay đổi kích thước trình duyệt
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        /* ========================================================================
+           📦 CÁC HÀM XÂY DỰNG MÔ HÌNH HÌNH HỌC THỦ TỤC (FALLBACK GEOMETRY)
+           ======================================================================== */
+        
+        function buildProceduralSceneA() {
+            const matTrachea = new THREE.MeshPhongMaterial({ color: 0xa0aec0, transparent: true, opacity: 0.9, wireframe: false });
+            const matLungs = new THREE.MeshPhongMaterial({ color: 0xff6b6b, transparent: true, opacity: 0.8 });
+
+            // Trachea (Khí quản)
+            const trachea = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 32), matTrachea);
+            trachea.position.set(0, 1.2, 0);
+            groupA.add(trachea);
+
+            // Bronchi (Phế quản)
+            const bLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.5, 16), matTrachea);
+            bLeft.position.set(-0.18, 0.45, 0);
+            bLeft.rotation.z = -Math.PI / 4;
+            const bRight = bLeft.clone();
+            bRight.position.x = 0.18;
+            bRight.rotation.z = Math.PI / 4;
+            groupA.add(bLeft, bRight);
+
+            // Lungs (Phổi)
+            const lungGeoLeft = new THREE.ConeGeometry(0.45, 1.4, 32);
+            lungGeoLeft.scale(1, 1, 0.6);
+            const lungLeft = new THREE.Mesh(lungGeoLeft, matLungs);
+            lungLeft.position.set(-0.55, -0.2, 0);
+            lungLeft.rotation.z = -0.1;
+
+            const lungGeoRight = new THREE.ConeGeometry(0.5, 1.4, 32);
+            lungGeoRight.scale(1, 1, 0.6);
+            const lungRight = new THREE.Mesh(lungGeoRight, matLungs);
+            lungRight.position.set(0.55, -0.2, 0);
+            lungRight.rotation.z = 0.1;
+
+            groupA.add(lungLeft, lungRight);
+
+            // Khởi dựng hệ thống hạt luồng khí
+            initAirflowParticles();
+        }
+
+        function initAirflowParticles() {
+            const pCount = 80;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(pCount * 3);
+            const progress = [];
+
+            for (let i = 0; i < pCount; i++) {
+                pos[i*3] = 0; pos[i*3+1] = 1.8; pos[i*3+2] = 0;
+                progress.push(Math.random());
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({ color: 0x00f2fe, size: 0.06, transparent: true, opacity: 0.8 });
+            particleSystemA = new THREE.Points(geo, mat);
+            particleSystemA.userData = { progress: progress };
+            particleSystemA.visible = false;
+            groupA.add(particleSystemA);
+        }
+
+        function buildProceduralSceneB() {
+            const matLungsB = new THREE.MeshPhongMaterial({ color: 0x4facfe, transparent: true, opacity: 0.85 });
+            lungMeshLeftB = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.4, 32), matLungsB);
+            lungMeshLeftB.position.set(-0.55, 0.2, 0);
+            lungMeshLeftB.scale.set(1, 1, 0.6);
+
+            lungMeshRightB = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.4, 32), matLungsB);
+            lungMeshRightB.position.set(0.55, 0.2, 0);
+            lungMeshRightB.scale.set(1, 1, 0.6);
+
+            // Diaphragm (Mô phỏng cơ hoành)
+            const matDiaphragm = new THREE.MeshPhongMaterial({ color: 0x2d3748, side: THREE.DoubleSide });
+            this.diaphragmMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.1, 32), matDiaphragm);
+            this.diaphragmMesh.position.set(0, -0.7, 0);
+            this.diaphragmMesh.scale.set(1, 0.3, 0.7);
+
+            groupB.add(lungMeshLeftB, lungMeshRightB, this.diaphragmMesh);
+        }
+
+        function buildProceduralSceneC() {
+            // Phế nang trung tâm lớn (Alveolus)
+            const matAlveolus = new THREE.MeshPhongMaterial({ color: 0xfefcbf, transparent: true, opacity: 0.4, wireframe: true });
+            const alveolus = new THREE.Mesh(new THREE.SphereGeometry(1.0, 32, 32), matAlveolus);
+            groupC.add(alveolus);
+
+            // Mao mạch bao quanh (Capillary Tube)
+            const matCapillary = new THREE.MeshPhongMaterial({ color: 0x4a5568, transparent: true, opacity: 0.3 });
+            const capillary = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.08, 16, 100), matCapillary);
+            capillary.rotation.x = Math.PI / 2.5;
+            groupC.add(capillary);
+
+            // Sinh sẵn các đối tượng hạt khí mô phỏng sự khuếch tán trao đổi chất chéo
+            const particleCount = 40;
+            for(let i=0; i<particleCount; i++) {
+                const isO2 = i % 2 === 0; // Chia đôi hạt O2 và CO2
+                const pMat = new THREE.MeshBasicMaterial({ color: isO2 ? 0x00f2fe : 0xff416c });
+                const pMesh = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), pMat);
+                
+                // Thiết lập trạng thái chuyển động tuần hoàn gốc
+                pMesh.userData = {
+                    isO2: isO2,
+                    angle: Math.random() * Math.PI * 2,
+                    speed: 0.01 + Math.random()*0.01,
+                    radius: isO2 ? 0.3 : 1.3, // O2 đi từ lõi phế nang ra, CO2 đi từ bên ngoài mạch máu vào
+                    state: Math.random()
+                };
+                groupC.add(pMesh);
+                gasParticles.push(pMesh);
+            }
+        }
+
+        /* ========================================================================
+           📡 TRÌNH NẠP THƯ VIỆN ĐỐI TƯỢNG ĐỒ HỌA NGOÀI (GLTFLOADER)
+           ======================================================================== */
+        function loadExternalGLTFFiles() {
+            const loader = new THREE.GLTFLoader();
+
+            // Nạp tệp cấu trúc Module A
+            loader.load(CONFIG_3D_MODELS.url_HeHoHapTongThe, function(gltf) {
+                // Xóa bỏ thành phần hình học đại diện cũ
+                while(groupA.children.length > 0){ groupA.remove(groupA.children[0]); }
+                groupA.add(gltf.scene);
+                initAirflowParticles(); // Tái thiết lập luồng khí trên nền mô hình mới
+            }, undefined, function(error) { console.error("Lỗi nạp file Module A: ", error); });
+
+            // Nạp tệp cấu trúc Module B
+            loader.load(CONFIG_3D_MODELS.url_CoCheHitTho, function(gltf) {
+                while(groupB.children.length > 0){ groupB.remove(groupB.children[0]); }
+                groupB.add(gltf.scene);
+                // Gán lại các con trỏ xương điều khiển hoạt ảnh (Animation) nếu file 3D của bạn có chứa Bone/MorphTarget
+            }, undefined, function(error) { console.error("Lỗi nạp file Module B: ", error); });
+
+            // Nạp tệp cấu trúc Module C
+            loader.load(CONFIG_3D_MODELS.url_PheNangTraoDoiKi, function(gltf) {
+                while(groupC.children.length > 0){ groupC.remove(groupC.children[0]); }
+                groupC.add(gltf.scene);
+            }, undefined, function(error) { console.error("Lỗi nạp file Module C: ", error); });
+        }
+
+
+        /* ========================================================================
+           ⚙️ ĐIỀU KHIỂN HOẠT ẢNH VÀ XỬ LÝ TOÁN HỌC KHÔNG GIAN KỊCH BẢN (ANIMATION LOOP)
+           ======================================================================== */
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const elapsedTime = clock.getElapsedTime();
+
+            // --- Xử lý Logic Hoạt ảnh Module A (Airflow Demo) ---
+            if (currentModule === 'A' && airflowActive && particleSystemA) {
+                const positions = particleSystemA.geometry.attributes.position.array;
+                const progress = particleSystemA.userData.progress;
+
+                for (let i = 0; i < progress.length; i++) {
+                    progress[i] += 0.007; // Tốc độ di chuyển dòng khí khí
+                    if (progress[i] > 1) progress[i] = 0;
+
+                    let p = progress[i];
+                    if (p < 0.4) { // Đoạn chạy trong ống khí quản
+                        positions[i*3] = Math.sin(p*20 + i)*0.01;
+                        positions[i*3+1] = 1.8 - (p/0.4)*1.0;
+                        positions[i*3+2] = Math.cos(p*20 + i)*0.01;
+                    } else { // Phân tách ngả đường rẽ vào hai phổi
+                        let side = (i % 2 === 0) ? 1 : -1;
+                        let p2 = (p - 0.4) / 0.6;
+                        positions[i*3] = side * (0.05 + p2*0.5);
+                        positions[i*3+1] = 0.8 - p2*1.0;
+                        positions[i*3+2] = Math.sin(p2*4 + i)*0.05;
+                    }
+                }
+                particleSystemA.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // --- Xử lý Logic Hoạt ảnh Module B (Co giãn cơ quan Cơ học) ---
+            if (currentModule === 'B') {
+                let scaleFactor = 1.0;
+                let dy = -0.7;
+
+                if (breathingState === 'auto') {
+                    breathingTimer += 0.02;
+                    let sinWave = Math.sin(breathingTimer);
+                    scaleFactor = 1.0 + sinWave * 0.12; 
+                    dy = -0.7 - sinWave * 0.15;
+                    updateBreathingDesc(sinWave > 0 ? "Hít vào: Cơ hoành co hạ xuống, thể tích lồng ngực tăng, phổi giãn nở kéo không khí vào." : "Thở ra: Cơ hoành dãn nâng lên, thể tích lồng ngực giảm, ép phổi co nhỏ đẩy khí ra.");
+                } else if (breathingState === 'inhale') {
+                    scaleFactor = 1.12; dy = -0.85;
+                    updateBreathingDesc("Trạng thái Hít vào: Lồng ngực mở rộng tối đa, áp suất âm hút khí vào phế nang.");
+                } else if (breathingState === 'exhale') {
+                    scaleFactor = 0.88; dy = -0.55;
+                    updateBreathingDesc("Trạng thái Thở ra: Phổi xẹp lại chủ động giúp tống đẩy lượng khí nghèo oxy ra bên ngoài.");
+                }
+
+                // Nếu đang dùng mô hình khối lập sẵn, áp dụng trực tiếp biến đổi hình thể giải phẫu học
+                if(lungMeshLeftB && lungMeshRightB) {
+                    lungMeshLeftB.scale.set(scaleFactor, scaleFactor, 0.6 * scaleFactor);
+                    lungMeshRightB.scale.set(scaleFactor, scaleFactor, 0.6 * scaleFactor);
+                    this.diaphragmMesh.position.y = dy;
+                }
+            }
+
+            // --- Xử lý Logic Hoạt ảnh Module C (Khuếch tán Phân tử Vi mô) ---
+            if (currentModule === 'C') {
+                gasParticles.forEach(p => {
+                    let ud = p.userData;
+                    ud.state += ud.speed;
+                    if(ud.state > 1) ud.state = 0;
+
+                    if (ud.isO2) { // Hạt Oxy di chuyển khuếch tán đi ra ngoài biên (Mao mạch)
+                        let currentR = ud.radius + ud.state * 0.9;
+                        p.position.set(Math.cos(ud.angle)*currentR, Math.sin(ud.angle)*currentR, (Math.sin(ud.state*Math.PI))*0.2);
+                    } else { // Hạt CO2 đi ngược từ mạch máu ngoài chui tụ tụ lại trung tâm phế nang
+                        let currentR = ud.radius - ud.state * 0.9;
+                        p.position.set(Math.cos(ud.angle)*currentR, Math.sin(ud.angle)*currentR, (Math.sin(ud.state*Math.PI))*0.2);
+                    }
+                });
+            }
+
+            controls.update();
+            updateHotspotsCoordinates(); // Ghép nối đồng bộ tọa độ các nhãn dán
+            renderer.render(scene, camera);
+        }
+
+        /* ========================================================================
+           🎛️ KHỐI HÀM ĐIỀU HƯỚNG VÀ SỰ KIỆN TƯƠNG TÁC NGƯỜI DÙNG (UI/UX)
+           ======================================================================== */
+        
+        function switchModule(moduleID) {
+            currentModule = moduleID;
+
+            // Chuyển đổi trạng thái đóng cắt các mô hình hiển thị trên Scene
+            groupA.visible = (moduleID === 'A');
+            groupB.visible = (moduleID === 'B');
+            groupC.visible = (moduleID === 'C');
+
+            // Cập nhật trạng thái các lớp giao diện bảng thông tin bên phải màn hình
+            document.querySelectorAll('.side-panel').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`panel-${moduleID}`).classList.remove('hidden');
+
+            // Đổi trạng thái nút bấm active ở thanh menu
+            document.querySelectorAll('.nav-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', (idx === 0 && moduleID === 'A') || (idx === 1 && moduleID === 'B') || (idx === 2 && moduleID === 'C'));
+            });
+
+            // Quản lý cơ chế bật tắt các nút nhãn định danh dán trên màn hình nền
+            const hotspotContainer = document.getElementById('hotspot-container');
+            if(moduleID === 'A') {
+                hotspotContainer.classList.remove('hidden');
+                createHotspotsElements();
+            } else {
+                hotspotContainer.classList.add('hidden');
+            }
+
+            resetCameraView();
+        }
+
+        // Tương tác bật tắt dòng khí của Module A
+        function toggleAirflow() {
+            airflowActive = !airflowActive;
+            if(particleSystemA) particleSystemA.visible = airflowActive;
+            const btn = document.getElementById('btn-airflow');
+            btn.classList.toggle('active', airflowActive);
+        }
+
+        // Tương tác đổi trạng thái hít thở của Module B
+        function setBreathing(state) {
+            breathingState = state;
+            document.querySelectorAll('.mode-b-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${state}`).classList.add('active');
+        }
+
+        function updateBreathingDesc(text) {
+            document.getElementById('info-text-B').innerHTML = text;
+        }
+
+        // Tạo các thẻ nhãn Hotspot HTML đè lên lớp canvas đồ họa
+        function createHotspotsElements() {
+            const container = document.getElementById('hotspot-container');
+            container.innerHTML = '';
+
+            hotspotsData.forEach((data, index) => {
+                const label = document.createElement('div');
+                label.className = 'hotspot-label';
+                label.innerText = data.name;
+                label.id = `hotspot-${index}`;
+                
+                // Gán sự kiện click cho nhãn
+                label.addEventListener('click', () => {
+                    document.getElementById('info-text-A').innerHTML = `<strong>${data.name}:</strong> <br>${data.desc}`;
+                });
+
+                container.appendChild(label);
+            });
+        }
+
+        // Chuyển đổi ma trận chiếu tọa độ từ Không gian 3D sang Màn hình phẳng 2D Pixel
+        function updateHotspotsCoordinates() {
+            if (currentModule !== 'A') return;
+
+            hotspotsData.forEach((data, index) => {
+                const element = document.getElementById(`hotspot-${index}`);
+                if (!element) return;
+
+                const vector = new THREE.Vector3(data.pos[0], data.pos[1], data.pos[2]);
+                vector.project(camera); // Chiếu vector theo góc nhìn Camera thực tế
+
+                // Kiểm tra nếu nhãn dốc khuất sau lưng tầm mắt của Camera
+                if (vector.z > 1) {
+                    element.style.display = 'none';
+                    return;
+                } else {
+                    element.style.display = 'block';
+                }
+
+                const posX = (vector.x * .5 + .5) * window.innerWidth;
+                const posY = (-(vector.y * .5) + .5) * window.innerHeight;
+
+                element.style.left = `${posX}px`;
+                element.style.top = `${posY}px`;
+            });
+        }
+
+        function resetCameraView() {
+            camera.position.set(0, 0, currentModule === 'C' ? 3.5 : 4.5);
+            controls.target.set(0, 0, 0);
+            controls.reset();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
